@@ -45,7 +45,12 @@
  */
 
 
+namespace basic_parser {
 
+
+typedef uint32_t bp_uint_t;
+typedef int32_t bp_int_t;
+typedef double bp_float_t;
 
 /**
  * @brief Returns current date and time formatted as YYYY-MM-DD.HH:mm:ss
@@ -96,26 +101,16 @@ std::string to_string(paramtype p){
  * which must be named at compile time. The only state stored by this class is the set of flags 
  * indicating whether or not basic_parser have been initialised.
  * 
- * @tparam bp_int_t type to use for signed int
- * @tparam bp_uint_t type to use for unsigned int
- * @tparam bp_float_t type to use for floating points
  */
-template <typename bp_int_t=int64_t, typename bp_uint_t=uint64_t, typename bp_float_t=double>
-class basic_parser {
-    template <typename it, typename uit, typename ft>
-    friend std::ostream& operator<<(std::ostream& os, basic_parser<it, uit, ft> p);
-    template <typename it, typename uit, typename ft>
-    friend std::istream& operator>>(std::istream& is, basic_parser<it, uit, ft> p);
+class Parser {
+    
+    friend std::ostream& operator<<(std::ostream& os, Parser p);
+    
+    friend std::istream& operator>>(std::istream& is, Parser p);
 public:
-    basic_parser(){}
-    basic_parser(const std::string& header) : 
-        header(header){};
-    basic_parser(const char* header) : 
-        header(header){};
-    basic_parser(const std::string& header, const char comment_char) : 
-        header(header), comment_char(comment_char) {};
-    basic_parser(const char* header, const char comment_char) :
-        header(header), comment_char(comment_char) {};
+    Parser(){}
+    Parser(unsigned major_version, unsigned minor_version, char comment_char='#', char output_delimiter='%') :
+        major_version(major_version), minor_version(minor_version), comment_char(comment_char), output_delimiter(output_delimiter) {};
 
     /**
      * @brief Outputs current parser state into human readable text
@@ -151,9 +146,8 @@ public:
      * @param argv it's argv
      * @param start=1 Expects argv[start] to be "--handle1".
      * 
-     * @return a pretty-printed string of which params were set
      */
-    std::string from_argv(int argc, const char** argv, int start=1);
+    void from_argv(int argc, const char** argv, int start=1);
 
     /**
      * @brief Reads an input file, setting all of the known variables using it
@@ -321,9 +315,11 @@ private:
     // std::map<const std::string,  std::filesystem::path* > files; 
     // std::map<const std::string,  std::filesystem::path* > folders; 
 
-    const std::string header;
-    const char comment_char = '#';
-    const char output_delimiter = '%';
+    const unsigned major_version;
+    const unsigned minor_version;
+    const char comment_char;
+    const char output_delimiter;
+    const char* executable = "";
 
     bool set_value(const std::string& handle, const std::string& value);
 
@@ -360,8 +356,8 @@ std::string strip(const std::string& str)
 
 
 // // TODO add a single-parameter version of this?
-// template <typename bp_int_t, typename bp_uint_t, typename bp_float_t>
-// void basic_parser<bp_int_t, bp_uint_t, bp_float_t>::assert_exclusive(
+// 
+// void basic_Parser::assert_exclusive(
 //     const std::vector<std::string>& v1, const std::vector<std::string>& v2){
 //     uint16_t num_v1_initialised=0;
 //     uint16_t num_v2_initialised=0;
@@ -419,8 +415,8 @@ std::string strip(const std::string& str)
 
 
 
-template <typename bp_int_t, typename bp_uint_t, typename bp_float_t>
-void basic_parser<bp_int_t, bp_uint_t, bp_float_t>::from_stream(std::istream& is, const char* delimiter){
+
+void Parser::from_stream(std::istream& is, const char* delimiter){
     size_t lineno = 0;
     for (std::string line; std::getline(is, line); ){
         lineno++;
@@ -475,8 +471,8 @@ bool stobool(const std::string& s){
     }
 }
 
-template <typename bp_int_t, typename bp_uint_t, typename bp_float_t>
-bool basic_parser<bp_int_t, bp_uint_t, bp_float_t>::set_value(const std::string& handle, const std::string& value){
+
+bool Parser::set_value(const std::string& handle, const std::string& value){
      // see if we recognise the index
         switch (index[handle])
         {
@@ -515,13 +511,11 @@ bool basic_parser<bp_int_t, bp_uint_t, bp_float_t>::set_value(const std::string&
 }
 
 
-template <typename bp_int_t, typename bp_uint_t, typename bp_float_t>
-void basic_parser<bp_int_t, bp_uint_t, bp_float_t>::into_stream(std::ostream& os, const char* delimiter){
-    std::stringstream ss(header);
+
+void Parser::into_stream(std::ostream& os, const char* delimiter){
+    
     os << comment_char << " --- OUTPUT FILE --- \n";
-    for (std::string line; std::getline(ss, line); ){
-        os<<comment_char<<line<<"\n";
-    }
+    os << comment_char << " " << executable << " v"<<major_version << "."<<minor_version<<"\n";
 
     for (auto& [handle, type] : index){
         switch (type)
@@ -548,20 +542,20 @@ void basic_parser<bp_int_t, bp_uint_t, bp_float_t>::into_stream(std::ostream& os
     }
 }
 
-template <typename bp_int_t, typename bp_uint_t, typename bp_float_t>
-std::ostream& operator<<(std::ostream& os, basic_parser<bp_int_t, bp_uint_t, bp_float_t> p){
+
+std::ostream& operator<<(std::ostream& os, Parser p){
     p.into_stream(os);
     return os;
 }
 
-template <typename bp_int_t, typename bp_uint_t, typename bp_float_t>
-std::istream& operator>>(std::istream& is, basic_parser<bp_int_t, bp_uint_t, bp_float_t> p){
+
+std::istream& operator>>(std::istream& is, Parser p){
     p.from_stream(is);
     return is;
 }
 
-template <typename bp_int_t, typename bp_uint_t, typename bp_float_t>
-void basic_parser<bp_int_t, bp_uint_t, bp_float_t>::into_file(const char* fname, const char* delimiter){
+
+void Parser::into_file(const char* fname, const char* delimiter){
     std::ofstream ofs(fname);
     if (!ofs.is_open()) {
         fprintf(stderr, "Error opening file %s\n", fname);
@@ -577,8 +571,8 @@ void basic_parser<bp_int_t, bp_uint_t, bp_float_t>::into_file(const char* fname,
     }
 }
     
-template <typename bp_int_t, typename bp_uint_t, typename bp_float_t>
-void basic_parser<bp_int_t, bp_uint_t, bp_float_t>::from_file(const char* fname, const char* delimiter){
+
+void Parser::from_file(const char* fname, const char* delimiter){
     std::ifstream ifs(fname);
     if (!ifs.is_open()) {
         fprintf(stderr, "Error opening file!\n");
@@ -605,10 +599,10 @@ void basic_parser<bp_int_t, bp_uint_t, bp_float_t>::from_file(const char* fname,
  * @param start First index to check
  * @return std::string Command line overrides in format %arg1=val1%arg2=val2 etc.
  */
-template<typename bp_int_t, typename bp_uint_t, typename bp_float_t>
-std::string basic_parser<bp_int_t, bp_uint_t, bp_float_t>::from_argv(int argc, const char** argv, int start)
+void Parser::from_argv(int argc, const char** argv, int start)
 {
-    std::stringstream retval;
+    this->executable = argv[0];
+    
     for (int i=start; i<argc; i++)
     {
         std::string s(argv[i]);
@@ -632,11 +626,7 @@ std::string basic_parser<bp_int_t, bp_uint_t, bp_float_t>::from_argv(int argc, c
         try
         {
             bool success = set_value(start, end);
-            if (success)
-            {
-                retval << output_delimiter << start << "=" << end;
-            }
-            else
+            if (!success)
             {
                 std::cerr<< "Invalid kwarg at position" << i<<": "<<s<<"\n";
                 throw std::runtime_error("Invalid kwarg");
@@ -648,12 +638,11 @@ std::string basic_parser<bp_int_t, bp_uint_t, bp_float_t>::from_argv(int argc, c
             throw std::runtime_error("Invalid kwarg");
         }
     }
-    return retval.str();
 }
 
 
-template <typename bp_int_t, typename bp_uint_t, typename bp_float_t>
-void basic_parser<bp_int_t, bp_uint_t, bp_float_t>::assert_initialised() {
+
+void Parser::assert_initialised() {
     bool giveup=false;
     for (const auto& [k, x] : initialised){
         if (x == false){
@@ -668,6 +657,9 @@ void basic_parser<bp_int_t, bp_uint_t, bp_float_t>::assert_initialised() {
 }
 
 
+
+
+}; // end of namespace basic_parser
 
 
 #endif
