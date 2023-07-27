@@ -108,7 +108,6 @@ class Parser {
     
     friend std::istream& operator>>(std::istream& is, Parser p);
 public:
-    Parser(){}
     Parser(unsigned major_version, unsigned minor_version, char comment_char='#', char output_delimiter='%') :
         major_version(major_version), minor_version(minor_version), comment_char(comment_char), output_delimiter(output_delimiter) {};
 
@@ -602,7 +601,7 @@ void Parser::from_file(const char* fname, const char* delimiter){
 void Parser::from_argv(int argc, const char** argv, int start)
 {
     this->executable = argv[0];
-    
+
     for (int i=start; i<argc; i++)
     {
         std::string s(argv[i]);

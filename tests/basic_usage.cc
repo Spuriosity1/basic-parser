@@ -6,9 +6,11 @@ using namespace basic_parser;
 
 int main (char argc, char* argv[]) 
 {
+    int nreps;
+    
     Parser p(1,0);
-    p.declare<int>("nreps");
-    p.declare<std::string>("label");
+    p.declare("nreps", &nreps);
+    
     p.declare<std::filesystem::path>("infile1");
     p.declare<std::filesystem::path>("output/outdata");
 
