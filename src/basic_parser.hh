@@ -73,7 +73,7 @@ const std::string currentDateTime() {
  * 
  */
 enum class paramtype {
-    None, Int, UInt, Float, String, Bool
+    None, Int, UInt, Float, String, Bool, Path
 };
 
 std::string to_string(paramtype p){
@@ -88,7 +88,9 @@ std::string to_string(paramtype p){
     case paramtype::String:
         return "String";
     case paramtype::Bool:
-        return "Boolean";    
+        return "Boolean";
+    case paramtype::Path:
+        return "Path";    
     default:
         return "NoneType";
     }
@@ -110,6 +112,10 @@ class Parser {
 public:
     Parser(unsigned major_version, unsigned minor_version, char comment_char='#', char output_delimiter='%') :
         major_version(major_version), minor_version(minor_version), comment_char(comment_char), output_delimiter(output_delimiter) {};
+
+    template<typename T>
+    bool get_value(const char*, T value);
+
 
     /**
      * @brief Outputs current parser state into human readable text
@@ -161,11 +167,14 @@ public:
     }
 
 
+    bool all_initialised(std::initializer_list<const char*>) const;
+    bool any_initialised(std::initializer_list<const char*>) const;
+
     /**
      * @brief Throws an exception if parameters have not been set
      * 
      */
-    void assert_initialised();
+    void assert_all_initialised() const;
 
     // /**
     //  * @brief Only passes silently if one of the following conditions are met:
@@ -217,14 +226,12 @@ public:
         index[handle] = paramtype::String;
         initialised[handle]=false;
     }
-
-    // TODO file/dir types with validation
-    // /// @overload
-    // const void declare(const std::string& handle, std::filesystem::path* p){
-    //     strings[handle] = s;
-    //     index.push_back(handle);
-    //     initialised[handle]=false;
-    // }
+    /// @overload
+    const void declare(const std::string& handle, std::filesystem::path* p){
+        paths[handle] = p;
+        index[handle] = paramtype::Path;
+        initialised[handle]=false;
+    }
 
     /**
      * @brief Like declare(handle, x), with a default parameter.
@@ -264,6 +271,13 @@ public:
         *s = default_s;
         initialised[handle]=true;
     }
+    /// @overload
+    const void declare_optional(const std::string& handle, std::filesystem::path* p, const std::filesystem::path& default_p){
+        paths[handle] = p;
+        index[handle] = paramtype::Path;
+        *p = default_p;
+        initialised[handle]=true;
+    }
     
 
     // TODO: file handler
@@ -274,31 +288,36 @@ public:
      * 
      * @return A nicely formatted string of all names expected from the input file.
      */
-    std::string cparam_names(const char* delimiter="="){
+    std::string cparam_names(const char* delimiter="=") const{
         std::stringstream s;
         for (auto& [handle, v] : ints) {
             s <<  handle << delimiter << "\t[ int ] ";
-            if (initialised[handle]) s<<*v;
+            if (initialised.at(handle)) s<<*v;
             s << "\n" ;
         }
         for (auto& [handle, v] : uints) {
             s <<  handle << delimiter << "\t[uint ] ";
-            if (initialised[handle]) s<<*v;
+            if (initialised.at(handle)) s<<*v;
             s << "\n" ;
         }
         for (auto& [handle, v] : floats) {
             s <<  handle << delimiter << "\t[float] ";
-            if (initialised[handle]) s<<*v;
+            if (initialised.at(handle)) s<<*v;
             s << "\n" ;
         }
         for (auto& [handle, v] : bools) {
             s <<  handle << delimiter << "\t[bool ] ";
-            if (initialised[handle]) s<<*v;
+            if (initialised.at(handle)) s<<*v;
             s << "\n" ;
         }
         for (auto& [handle, v] : strings) {
             s <<  handle << delimiter << "\t[ str ] ";
-            if (initialised[handle]) s<<*v;
+            if (initialised.at(handle)) s<<*v;
+            s << "\n" ;
+        }
+        for (auto& [handle, v] : paths) {
+            s <<  handle << delimiter << "\t[path ] ";
+            if (initialised.at(handle)) s<<*v;
             s << "\n" ;
         }
         return s.str();
@@ -311,8 +330,7 @@ private:
     std::map<const std::string,  bp_float_t*   > floats;
     std::map<const std::string,  std::string* > strings; 
     std::map<const std::string,  bool*        > bools;
-    // std::map<const std::string,  std::filesystem::path* > files; 
-    // std::map<const std::string,  std::filesystem::path* > folders; 
+    std::map<const std::string,  std::filesystem::path* > paths; 
 
     const unsigned major_version;
     const unsigned minor_version;
@@ -342,77 +360,6 @@ std::string strip(const std::string& str)
     s.erase(s.find_last_not_of(" \t\n\r\f\v") + 1);
     return s;
 }
-
-// std::string strip(std::string&& s)
-// {
-//     s.erase(0,s.find_first_not_of(" \t\n\r\f\v"));
-//     s.erase(s.find_last_not_of(" \t\n\r\f\v") + 1);
-//     return std::move(s);
-// }
-
-///////// IMPLEMENTATION //////////////////////
-
-
-
-// // TODO add a single-parameter version of this?
-// 
-// void basic_Parser::assert_exclusive(
-//     const std::vector<std::string>& v1, const std::vector<std::string>& v2){
-//     uint16_t num_v1_initialised=0;
-//     uint16_t num_v2_initialised=0;
-
-//     for (const auto& p1 : v1) {
-//         try {
-//             if (this->initialised.at(p1)) num_v1_initialised++;
-//         } catch (const std::out_of_range& e){
-//             // param has not been declared!
-//             std::string problem = "Cannot assert exclusivity of undeclared parameters.\n";
-//             problem += "This function must be used after all parameters habe been declared:\n";
-//             problem += e.what();
-//             throw std::out_of_range(problem);
-//         }
-        
-//     }
-
-//     for (const auto& p2 : v2) {
-//         try {
-//             if (this->initialised.at(p2)) num_v2_initialised++;
-//         } catch (const std::out_of_range& e){
-//             // param has not been declared!
-//             std::string problem = "Cannot assert exclusivity of undeclared parameters.\n";
-//             problem += "This function must be used after all parameters habe been declared:\n";
-//             problem += e.what();
-//             throw std::out_of_range(problem);
-//         }
-        
-//     }
-
-//     if (num_v1_initialised != 0 && num_v2_initialised != 0){
-//         std::string what = "Mixed initialisation present:\n";
-//         what += "must choose between initialising the group \n\n[ ";
-//         for (const auto& p : v1) {
-//             what += p + ", ";
-//         }
-//         what += "]\n\n and \n\n["
-//         for (const auto& p : v2) {
-//             what += p + ", ";
-//         }
-//         what += "]\n";
-//         throw std::runtime_error(what);
-//     } else if (num_v1_initialised == 0){
-//         // v2 must be nonzero
-//         if (num_v2_initialised < v2.size()){
-//             throw std::runtime_error("Incomplete initialisation");
-//         }
-//     } else if (num_v2_initialised == 0){
-        
-//     } else {
-//         throw std::logic_error("This should be impossible.");
-//     }
-
-// }
-
-
 
 
 void Parser::from_stream(std::istream& is, const char* delimiter){
@@ -500,6 +447,18 @@ bool Parser::set_value(const std::string& handle, const std::string& value){
                 *strings[handle] = std::string_view(value).substr(1,value.length()-2);
             } else {
                 *strings[handle] = strip(value);
+            }
+            break;
+        case paramtype::Path:
+            if ( (value.front() == '"' && value.back() == '"') 
+                || (value.front() == '\'' && value.back() == '\'') )
+            {
+                *paths[handle] = std::string_view(value).substr(1,value.length()-2);
+            } else {
+                *paths[handle] = strip(value);
+            }
+            if (!std::filesystem::exists(*paths.at(handle))){
+                throw std::runtime_error("No such file or directory: " + (*paths[handle]).string());
             }
             break;
         default:
@@ -598,7 +557,8 @@ void Parser::from_file(const char* fname, const char* delimiter){
  * @param start First index to check
  * @return std::string Command line overrides in format %arg1=val1%arg2=val2 etc.
  */
-void Parser::from_argv(int argc, const char** argv, int start)
+void
+Parser::from_argv(int argc, const char** argv, int start)
 {
     this->executable = argv[0];
 
@@ -641,11 +601,12 @@ void Parser::from_argv(int argc, const char** argv, int start)
 
 
 
-void Parser::assert_initialised() {
+void 
+Parser::assert_all_initialised() const {
     bool giveup=false;
     for (const auto& [k, x] : initialised){
         if (x == false){
-            fprintf(stderr, "Uninitialied %s: %s\n",to_string(index[k]).c_str(),k.c_str());
+            fprintf(stderr, "Uninitialied %s: %s\n",to_string(index.at(k)).c_str(),k.c_str());
             giveup=true;
         }
     }
@@ -656,6 +617,23 @@ void Parser::assert_initialised() {
 }
 
 
+
+bool Parser::all_initialised(std::initializer_list<const char*> handles) const 
+{
+    for (auto& h : handles){
+        if (!this->initialised.at(std::string(h))) return false;
+    }
+    return true;
+}
+
+
+bool Parser::any_initialised(std::initializer_list<const char*> handles) const 
+{
+    for (auto& h : handles){
+        if (!this->initialised.at(std::string(h))) return false;
+    }
+    return true;
+}
 
 
 }; // end of namespace basic_parser

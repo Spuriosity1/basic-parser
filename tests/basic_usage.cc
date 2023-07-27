@@ -7,30 +7,28 @@ using namespace basic_parser;
 int main (char argc, char* argv[]) 
 {
     int nreps;
-    
+    bool g,gp, rho_g, phi_g;
+
     Parser p(1,0);
     p.declare("nreps", &nreps);
-    
-    p.declare<std::filesystem::path>("infile1");
-    p.declare<std::filesystem::path>("output/outdata");
 
-    p.declare<double>("g");
-    p.declare<double>("gp");
-    p.declare<double>("phig");
-    p.declare<double>("rhog");
+    p.declare("g", &g);
+    p.declare("gp", &gp);
+    p.declare("phig", &phi_g);
+    p.declare("rhog", &rho_g);
 
     if (p.all_initialised({"g","gp"})){
         if (p.any_initialised({"phig","rhog"})){
             throw std::runtime_error("If (g,g') are defined, neither of (phig, rhog) may be used.\n");
         }
-        p.get<double>("phig") = atan2(p.get<double>("gp"), p.get<double>("g"));
-        p.get<double>("rhog") = sqrt(p.get<double>("gp")*p.get<double>("gp") + p.get<double>("g")*p.get<double>("g"));
+        phi_g = atan2(gp, g);
+        rho_g = sqrt(gp*gp + g*g);
     } else if (p.all_initialised({"phig","rhog"})) {
         if (p.any_initialised({"g","g'"})){
             throw std::runtime_error("If (phig,rhog) are defined, neither of (g, g') may be used.\n");
         }
-        p.get<double>("g") = p.get<double>("rhog") * cos(p.get<double>("phig"));
-        p.get<double>("gp") = p.get<double>("rhog") * sin(p.get<double>("phig"));
+        g = rho_g * cos(phi_g);
+        gp = rho_g * sin(phi_g);
     }
 
 
