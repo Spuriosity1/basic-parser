@@ -52,6 +52,33 @@ typedef uint32_t bp_uint_t;
 typedef int32_t bp_int_t;
 typedef double bp_float_t;
 
+
+
+// CONCEPTS for deducing return type
+template <typename T, typename... U>
+concept IsAnyOf = (std::same_as<T, U> || ...);
+
+template <typename T>
+concept Int = std::is_signed<T>::value && std::is_integral<T>::value;
+
+template <typename T>
+concept UInt = !std::is_signed<T>::value && std::is_integral<T>::value && !std::is_same<T, bool>::value;
+
+template <typename T>
+concept Float = std::is_floating_point<T>::value;
+
+template <typename T>
+concept Bool = std::is_same<T, bool>::value;
+
+template <typename T>
+concept String = std::is_same<T, std::string>::value;
+
+template <typename T>
+concept Path = std::is_same<T, std::filesystem::path>::value;
+
+template <typename T>
+concept valid_input_type = Int<T> || UInt<T> || Bool<T> || String<T> || Path<T> || Float<T>;
+
 /**
  * @brief Returns current date and time formatted as YYYY-MM-DD.HH:mm:ss
  * @return current date/time, format is YYYY-MM-DD.HH:mm:ss
@@ -73,7 +100,7 @@ const std::string currentDateTime() {
  * 
  */
 enum class paramtype {
-    None, Int, UInt, Float, String, Bool, Path
+    None, Int, UInt, Float, String, Bool, ValidPath
 };
 
 std::string to_string(paramtype p){
@@ -89,7 +116,7 @@ std::string to_string(paramtype p){
         return "String";
     case paramtype::Bool:
         return "Boolean";
-    case paramtype::Path:
+    case paramtype::ValidPath:
         return "Path";    
     default:
         return "NoneType";
@@ -113,8 +140,11 @@ public:
     Parser(unsigned major_version, unsigned minor_version, char comment_char='#', char output_delimiter='%') :
         major_version(major_version), minor_version(minor_version), comment_char(comment_char), output_delimiter(output_delimiter) {};
 
-    template<typename T>
-    bool get_value(const char*, T value);
+    template<valid_input_type T>
+    void set_value(const char* handle, T value){
+        *(datamap<T>().at(handle)) = value;
+        this->initialised[handle] = true;
+    }
 
 
     /**
@@ -192,44 +222,11 @@ public:
      * @param handle The C string to search for in the infile.
      * @param x The varaible that the parser should store the result in (passed by reference)
      */
-    const void declare(const std::string& handle, bp_int_t* x){
+    template<valid_input_type T>
+    const void declare(const std::string& handle, T* x){
         assert_unique(handle);
-        ints[handle] = x;
+        this->datamap<T>()[handle] = x;
         index[handle] = paramtype::Int;
-        initialised[handle]=false;
-    }
-    /// @overload
-    const void declare(const std::string& handle, bp_uint_t* x){
-        assert_unique(handle);
-        uints[handle] = x;
-        index[handle] = paramtype::UInt;
-        initialised[handle]=false;
-    }
-    /// @overload
-    const void declare(const std::string& handle, bp_float_t* x){
-        assert_unique(handle);
-        floats[handle] = x;
-        index[handle] = paramtype::Float;
-        initialised[handle]=false;
-    }
-    /// @overload
-    const void declare(const std::string& handle, bool* b){
-        assert_unique(handle);
-        bools[handle] = b;
-        index[handle] = paramtype::Bool;
-        initialised[handle]=false;
-    }
-    /// @overload
-    const void declare(const std::string& handle, std::string* s){
-        assert_unique(handle);
-        strings[handle] = s;
-        index[handle] = paramtype::String;
-        initialised[handle]=false;
-    }
-    /// @overload
-    const void declare(const std::string& handle, std::filesystem::path* p){
-        paths[handle] = p;
-        index[handle] = paramtype::Path;
         initialised[handle]=false;
     }
 
@@ -242,45 +239,12 @@ public:
      * 
      * @see void declare(const std::string& handle, bp_int_t& x)
      */
-    const void declare_optional(const std::string& handle, bp_int_t* x, bp_int_t default_x){
+    template<valid_input_type T>
+    const void declare_optional(const std::string& handle, T* x, bp_int_t default_x){
         declare(handle, x);
         *x = default_x;
         initialised[handle]=true;
     }
-    /// @overload
-    const void declare_optional(const std::string& handle, bp_uint_t* x, bp_uint_t default_x){
-        declare(handle, x);
-        *x = default_x;
-        initialised[handle]=true;
-    }
-    /// @overload
-    const void declare_optional(const std::string& handle, bp_float_t* x, bp_float_t default_x){
-        declare(handle, x);
-        *x = default_x;
-        initialised[handle]=true;
-    }
-    /// @overload
-    const void declare_optional(const std::string& handle, bool* b, bool default_b=false){
-        declare(handle, b);
-        *b = default_b;
-        initialised[handle]=true;
-    }
-    /// @overload
-    const void declare_optional(const std::string& handle, std::string* s, const std::string& default_s){
-        declare(handle, s);
-        *s = default_s;
-        initialised[handle]=true;
-    }
-    /// @overload
-    const void declare_optional(const std::string& handle, std::filesystem::path* p, const std::filesystem::path& default_p){
-        paths[handle] = p;
-        index[handle] = paramtype::Path;
-        *p = default_p;
-        initialised[handle]=true;
-    }
-    
-
-    // TODO: file handler
 
 
     /**
@@ -351,6 +315,27 @@ private:
     std::map<const std::string, bool> initialised; /// Keeps track of whether the variable has been set or not
 
     std::map<const std::string, paramtype> index; /// Stores the order in which handles were passed for consistency
+
+    
+    template <Bool T>
+    auto datamap(){return bools;}
+
+    template <Int T>
+    auto datamap(){return ints;}
+
+    template <UInt T>
+    auto datamap(){return uints;}
+
+    template <Float T>
+    auto datamap(){return floats;}
+
+    template <String T>
+    auto datamap(){return strings;}
+
+    template <Path T>
+    auto datamap(){return paths;}
+
+    
 };
 
 std::string strip(const std::string& str)
@@ -449,7 +434,7 @@ bool Parser::set_value(const std::string& handle, const std::string& value){
                 *strings[handle] = strip(value);
             }
             break;
-        case paramtype::Path:
+        case paramtype::ValidPath:
             if ( (value.front() == '"' && value.back() == '"') 
                 || (value.front() == '\'' && value.back() == '\'') )
             {
@@ -549,9 +534,6 @@ void Parser::from_file(const char* fname, const char* delimiter){
 /**
  * @brief Parses command line arguments, starting from argv[start]
  * 
- * @tparam bp_int_t Integer Type
- * @tparam bp_uint_t Unsigned Integer Type
- * @tparam bp_float_t Float Type
  * @param argc Number of nonzero command line arguments (including the ones skipped by start)
  * @param argv Argument vector
  * @param start First index to check
@@ -634,6 +616,12 @@ bool Parser::any_initialised(std::initializer_list<const char*> handles) const
     }
     return true;
 }
+
+
+
+
+
+
 
 
 }; // end of namespace basic_parser
